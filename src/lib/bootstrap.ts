@@ -1,4 +1,6 @@
-import { db } from "@/db";
+/* Legacy PostgreSQL request-time bootstrap (kept in Git history; disabled during MySQL migration).
+// @ts-nocheck
+import { db, pool } from "@/db";
 import { announcements, certificates, coordinators, events, registrations, users } from "@/db/schema";
 import { sql } from "drizzle-orm";
 import { hashPassword, makeId, makeToken } from "./security";
@@ -274,8 +276,21 @@ async function seedData() {
 
 export async function ensureDatabase() {
   bootstrapPromise ??= (async () => {
-    await createTables();
-    await seedData();
+    await pool.query("SELECT 1");
   })();
   await bootstrapPromise;
+}
+*/
+
+import { pool } from "@/db";
+
+let mysqlConnectionPromise: Promise<void> | null = null;
+
+/** Verify MySQL once per server process. Run `npm run db:init` to create and seed the schema. */
+export async function ensureDatabase() {
+  mysqlConnectionPromise ??= pool.query("SELECT 1").then(() => undefined).catch((error) => {
+    mysqlConnectionPromise = null;
+    throw error;
+  });
+  await mysqlConnectionPromise;
 }

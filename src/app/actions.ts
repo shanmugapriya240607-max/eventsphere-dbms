@@ -131,10 +131,7 @@ export async function registerForEventAction(formData: FormData) {
       status: "pending",
       confirmationCode: `CC26-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
     })
-    .onConflictDoUpdate({
-      target: [registrations.userId, registrations.eventId],
-      set: { status: "pending", updatedAt: sql`now()` },
-    });
+    .onDuplicateKeyUpdate({ set: { status: "pending", updatedAt: sql`CURRENT_TIMESTAMP` } });
   revalidatePath("/student/dashboard");
 }
 
@@ -175,7 +172,7 @@ export async function saveEventAction(formData: FormData) {
   if (eventId) {
     await db.update(events).set(payload).where(eq(events.id, eventId));
   } else {
-    await db.insert(events).values({ id: makeId("evt"), ...payload }).onConflictDoNothing();
+    await db.insert(events).values({ id: makeId("evt"), ...payload }).onDuplicateKeyUpdate({ set: { name } });
   }
   revalidatePath("/admin/dashboard");
   revalidatePath("/");

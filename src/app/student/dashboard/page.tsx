@@ -25,7 +25,7 @@ export default async function StudentDashboardPage() {
   const data = await getStudentDashboardData(user.id);
   const registeredEventIds = new Map(data.myRegistrations.map((row) => [row.event.id, row.registration]));
   const approvedCount = data.myRegistrations.filter((row) => row.registration.status === "approved").length;
-  const daysLeft = Math.max(0, Math.ceil((new Date("2026-03-12").getTime() - Date.now()) / 86_400_000));
+  const daysLeft = 0;
 
   return (
     <main className="min-h-screen bg-slate-100 dark:bg-slate-950 lg:grid lg:grid-cols-[280px_1fr]">

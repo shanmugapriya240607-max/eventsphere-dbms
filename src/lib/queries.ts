@@ -1,16 +1,16 @@
 import { db } from "@/db";
 import { announcements, certificates, coordinators, events, registrations, users } from "@/db/schema";
-import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, like, or, sql } from "drizzle-orm";
 import { ensureDatabase } from "./bootstrap";
 
 export async function getSiteStats() {
   await ensureDatabase();
   const [stats] = await db
     .select({
-      students: sql<number>`count(distinct ${users.id}) filter (where ${users.role} = 'student')::int`,
-      events: sql<number>`count(distinct ${events.id})::int`,
-      registrations: sql<number>`count(distinct ${registrations.id})::int`,
-      approved: sql<number>`count(distinct ${registrations.id}) filter (where ${registrations.status} = 'approved')::int`,
+      students: sql<number>`cast(count(distinct case when ${users.role} = 'student' then ${users.id} end) as unsigned)`,
+      events: sql<number>`cast(count(distinct ${events.id}) as unsigned)`,
+      registrations: sql<number>`cast(count(distinct ${registrations.id}) as unsigned)`,
+      approved: sql<number>`cast(count(distinct case when ${registrations.status} = 'approved' then ${registrations.id} end) as unsigned)`,
     })
     .from(users)
     .leftJoin(registrations, eq(users.id, registrations.userId))
@@ -21,7 +21,7 @@ export async function getSiteStats() {
 export async function getPublicEvents(search?: string, category?: string) {
   await ensureDatabase();
   const filters = [];
-  if (search) filters.push(or(ilike(events.name, `%${search}%`), ilike(events.description, `%${search}%`)));
+  if (search) filters.push(or(like(events.name, `%${search}%`), like(events.description, `%${search}%`)));
   if (category && category !== "All") filters.push(eq(events.category, category));
   return db
     .select()
@@ -71,12 +71,12 @@ export async function getAdminDashboardData() {
   await ensureDatabase();
   const [stats] = await db
     .select({
-      students: sql<number>`count(distinct ${users.id}) filter (where ${users.role} = 'student')::int`,
-      admins: sql<number>`count(distinct ${users.id}) filter (where ${users.role} = 'admin')::int`,
-      totalRegistrations: sql<number>`count(distinct ${registrations.id})::int`,
-      pending: sql<number>`count(distinct ${registrations.id}) filter (where ${registrations.status} = 'pending')::int`,
-      approved: sql<number>`count(distinct ${registrations.id}) filter (where ${registrations.status} = 'approved')::int`,
-      rejected: sql<number>`count(distinct ${registrations.id}) filter (where ${registrations.status} = 'rejected')::int`,
+      students: sql<number>`cast(count(distinct case when ${users.role} = 'student' then ${users.id} end) as unsigned)`,
+      admins: sql<number>`cast(count(distinct case when ${users.role} = 'admin' then ${users.id} end) as unsigned)`,
+      totalRegistrations: sql<number>`cast(count(distinct ${registrations.id}) as unsigned)`,
+      pending: sql<number>`cast(count(distinct case when ${registrations.status} = 'pending' then ${registrations.id} end) as unsigned)`,
+      approved: sql<number>`cast(count(distinct case when ${registrations.status} = 'approved' then ${registrations.id} end) as unsigned)`,
+      rejected: sql<number>`cast(count(distinct case when ${registrations.status} = 'rejected' then ${registrations.id} end) as unsigned)`,
     })
     .from(users)
     .leftJoin(registrations, eq(users.id, registrations.userId));

@@ -36,7 +36,7 @@ export default async function AdminDashboardPage() {
           <p className="font-black uppercase tracking-[.2em] text-amber-300">Organizer Command Center</p>
           <div className="mt-3 flex flex-col justify-between gap-6 xl:flex-row xl:items-end">
             <div><h1 className="text-4xl font-black md:text-6xl">Welcome, {admin.fullName}.</h1><p className="mt-3 max-w-2xl text-slate-300">Manage events, participants, approvals, announcements, certificates, and export-ready registration reports.</p></div>
-            <a href="/api/export/registrations" className="btn-primary">Export CSV</a>
+            <Link href="/api/export/registrations" className="btn-primary">Export CSV</Link>
           </div>
           <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
             {[
@@ -85,7 +85,7 @@ export default async function AdminDashboardPage() {
         </section>
 
         <section id="certificates" className="mt-6 rounded-[2rem] bg-white p-6 shadow-xl dark:bg-slate-900"><h2 className="text-2xl font-black">Certificates</h2><p className="mt-3 text-slate-600 dark:text-slate-300">Participation certificates are generated for approved and verified attendees. Demo certificates are pre-seeded for approved registrations and visible in student dashboards.</p></section>
-        <section id="reports" className="mt-6 rounded-[2rem] bg-white p-6 shadow-xl dark:bg-slate-900"><h2 className="text-2xl font-black">Reports & Analytics</h2><p className="mt-3 text-slate-600 dark:text-slate-300">Use the CSV export for Excel/Sheets analysis. Dashboard cards provide registration analytics by status, participants, and event count.</p><a href="/api/export/registrations" className="btn-primary mt-5">Download registrations CSV</a></section>
+        <section id="reports" className="mt-6 rounded-[2rem] bg-white p-6 shadow-xl dark:bg-slate-900"><h2 className="text-2xl font-black">Reports & Analytics</h2><p className="mt-3 text-slate-600 dark:text-slate-300">Use the CSV export for Excel/Sheets analysis. Dashboard cards provide registration analytics by status, participants, and event count.</p><Link href="/api/export/registrations" className="btn-primary mt-5">Download registrations CSV</Link></section>
         <section id="settings" className="mt-6 rounded-[2rem] bg-white p-6 shadow-xl dark:bg-slate-900"><h2 className="text-2xl font-black">Settings</h2><p className="mt-3 text-slate-600 dark:text-slate-300">Secure sessions are persisted in HTTP-only cookies. Admin-only actions are protected server-side by role checks.</p></section>
       </section>
     </main>

@@ -20,7 +20,9 @@ export async function POST(request: NextRequest) {
   const user = await getUserFromRequest(request);
   if (user?.role !== "admin") return NextResponse.json({ error: "Admin access required" }, { status: 403 });
   const body = await request.json();
-  const [event] = await db.insert(events).values({ id: makeId("evt"), slug: slugify(body.name), status: "open", ...body }).returning();
+  const id = makeId("evt");
+  await db.insert(events).values({ id, slug: slugify(body.name), status: "open", ...body });
+  const [event] = await db.select().from(events).where(eq(events.id, id)).limit(1);
   return NextResponse.json({ event }, { status: 201 });
 }
 
@@ -28,7 +30,8 @@ export async function PUT(request: NextRequest) {
   const user = await getUserFromRequest(request);
   if (user?.role !== "admin") return NextResponse.json({ error: "Admin access required" }, { status: 403 });
   const body = await request.json();
-  const [event] = await db.update(events).set({ ...body, slug: body.name ? slugify(body.name) : undefined }).where(eq(events.id, body.id)).returning();
+  await db.update(events).set({ ...body, slug: body.name ? slugify(body.name) : undefined }).where(eq(events.id, body.id));
+  const [event] = await db.select().from(events).where(eq(events.id, body.id)).limit(1);
   return NextResponse.json({ event });
 }
 
