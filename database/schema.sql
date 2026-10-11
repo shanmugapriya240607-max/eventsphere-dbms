@@ -116,3 +116,19 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Venue is already booked during this time range';
   END IF;
 END;
+
+-- statement
+DROP TRIGGER IF EXISTS prevent_venue_schedule_overlap_update;
+
+-- statement
+CREATE TRIGGER prevent_venue_schedule_overlap_update
+BEFORE UPDATE ON event_schedules FOR EACH ROW
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM event_schedules s
+    WHERE s.id <> NEW.id AND s.venue_id = NEW.venue_id AND s.schedule_date = NEW.schedule_date
+      AND NEW.start_time < s.end_time AND NEW.end_time > s.start_time
+  ) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Venue is already booked during this time range';
+  END IF;
+END;

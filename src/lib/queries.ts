@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { announcements, certificates, coordinators, events, registrations, users } from "@/db/schema";
+import { announcements, attendance, certificates, coordinators, eventSchedules, events, registrations, users, venues } from "@/db/schema";
 import { and, asc, desc, eq, like, or, sql } from "drizzle-orm";
 import { ensureDatabase } from "./bootstrap";
 
@@ -67,7 +67,7 @@ export async function getStudentDashboardData(userId: string) {
   return { myRegistrations, allEvents, announcements: announcementList, certificates: certList };
 }
 
-export async function getAdminDashboardData() {
+export async function getAdminDashboardData(participantSearch?: string) {
   await ensureDatabase();
   const [stats] = await db
     .select({
@@ -77,29 +77,52 @@ export async function getAdminDashboardData() {
       pending: sql<number>`cast(count(distinct case when ${registrations.status} = 'pending' then ${registrations.id} end) as unsigned)`,
       approved: sql<number>`cast(count(distinct case when ${registrations.status} = 'approved' then ${registrations.id} end) as unsigned)`,
       rejected: sql<number>`cast(count(distinct case when ${registrations.status} = 'rejected' then ${registrations.id} end) as unsigned)`,
+      present: sql<number>`cast(count(distinct case when ${attendance.status} = 'present' then ${attendance.id} end) as unsigned)`,
     })
     .from(users)
-    .leftJoin(registrations, eq(users.id, registrations.userId));
+    .leftJoin(registrations, eq(users.id, registrations.userId))
+    .leftJoin(attendance, eq(attendance.registrationId, registrations.id));
 
-  const [eventList, participantList, registrationList, announcementList] = await Promise.all([
+  const participantFilter = participantSearch
+    ? and(eq(users.role, "student"), or(like(users.fullName, `%${participantSearch}%`), like(users.email, `%${participantSearch}%`), like(users.registerNumber, `%${participantSearch}%`), like(users.department, `%${participantSearch}%`)))
+    : eq(users.role, "student");
+
+  const [eventList, participantList, registrationList, announcementList, venueList, scheduleList, attendanceSummary] = await Promise.all([
     db.select().from(events).orderBy(asc(events.eventDate), asc(events.startTime)),
-    db.select().from(users).where(eq(users.role, "student")).orderBy(desc(users.createdAt)).limit(30),
+    db.select().from(users).where(participantFilter).orderBy(desc(users.createdAt)).limit(50),
     db
-      .select({ registration: registrations, user: users, event: events })
+      .select({ registration: registrations, user: users, event: events, attendance })
       .from(registrations)
       .innerJoin(users, eq(users.id, registrations.userId))
       .innerJoin(events, eq(events.id, registrations.eventId))
+      .leftJoin(attendance, eq(attendance.registrationId, registrations.id))
       .orderBy(desc(registrations.createdAt))
       .limit(80),
     db.select().from(announcements).orderBy(desc(announcements.createdAt)).limit(10),
+    db.select().from(venues).orderBy(asc(venues.name)),
+    db.select({ schedule: eventSchedules, event: events, venue: venues }).from(eventSchedules)
+      .innerJoin(events, eq(events.id, eventSchedules.eventId)).innerJoin(venues, eq(venues.id, eventSchedules.venueId))
+      .orderBy(asc(eventSchedules.scheduleDate), asc(eventSchedules.startTime)),
+    db.select({
+      eventId: events.id,
+      eventName: events.name,
+      registered: sql<number>`cast(count(distinct ${registrations.id}) as unsigned)`,
+      marked: sql<number>`cast(count(distinct ${attendance.id}) as unsigned)`,
+      present: sql<number>`cast(count(distinct case when ${attendance.status} = 'present' then ${attendance.id} end) as unsigned)`,
+      absent: sql<number>`cast(count(distinct case when ${attendance.status} = 'absent' then ${attendance.id} end) as unsigned)`,
+    }).from(events).leftJoin(registrations, eq(registrations.eventId, events.id))
+      .leftJoin(attendance, eq(attendance.registrationId, registrations.id)).groupBy(events.id, events.name).orderBy(asc(events.name)),
   ]);
 
   return {
-    stats: stats ?? { students: 0, admins: 0, totalRegistrations: 0, pending: 0, approved: 0, rejected: 0 },
+    stats: stats ?? { students: 0, admins: 0, totalRegistrations: 0, pending: 0, approved: 0, rejected: 0, present: 0 },
     events: eventList,
     participants: participantList,
     registrations: registrationList,
     announcements: announcementList,
+    venues: venueList,
+    schedules: scheduleList,
+    attendanceSummary,
   };
 }
 

@@ -6,6 +6,7 @@ import { clearSession, requireUser, setSession } from "@/lib/auth";
 import { ensureDatabase } from "@/lib/bootstrap";
 import { hashPassword, makeId, makeToken, verifyPassword } from "@/lib/security";
 import { cancelRegistration, createRegistration, RegistrationError, setRegistrationStatus } from "@/lib/registration-service";
+import { deleteSchedule, deleteVenue, ManagementError, markAttendance, saveSchedule, saveVenue } from "@/lib/event-management";
 import { ValidationError, validateEmail, validateEventInput, validateId, validateRole } from "@/lib/validation";
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -207,4 +208,55 @@ export async function createAnnouncementAction(formData: FormData) {
   });
   revalidatePath("/admin/dashboard");
   revalidatePath("/student/dashboard");
+}
+
+export async function saveVenueAction(formData: FormData) {
+  const admin = await requireUser("admin");
+  if (!admin) redirect("/login?portal=admin&error=Admin access required.");
+  try {
+    await saveVenue(Object.fromEntries(formData.entries()));
+  } catch (error) {
+    go("/admin/dashboard", "error", error instanceof Error ? error.message : "Venue operation failed.");
+  }
+  revalidatePath("/admin/dashboard");
+  go("/admin/dashboard", "success", value(formData, "id") ? "Venue updated." : "Venue created.");
+}
+
+export async function deleteVenueAction(formData: FormData) {
+  const admin = await requireUser("admin");
+  if (!admin) redirect("/login?portal=admin&error=Admin access required.");
+  try { await deleteVenue(value(formData, "id")); } catch (error) {
+    go("/admin/dashboard", "error", error instanceof Error ? error.message : "Venue deletion failed.");
+  }
+  revalidatePath("/admin/dashboard");
+  go("/admin/dashboard", "success", "Venue deleted.");
+}
+
+export async function saveScheduleAction(formData: FormData) {
+  const admin = await requireUser("admin");
+  if (!admin) redirect("/login?portal=admin&error=Admin access required.");
+  try { await saveSchedule(Object.fromEntries(formData.entries())); } catch (error) {
+    go("/admin/dashboard", "error", error instanceof Error ? error.message : "Schedule operation failed.");
+  }
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/events");
+  go("/admin/dashboard", "success", value(formData, "id") ? "Schedule updated." : "Venue allocated successfully.");
+}
+
+export async function deleteScheduleAction(formData: FormData) {
+  const admin = await requireUser("admin");
+  if (!admin) redirect("/login?portal=admin&error=Admin access required.");
+  await deleteSchedule(value(formData, "id"));
+  revalidatePath("/admin/dashboard");
+  go("/admin/dashboard", "success", "Schedule removed.");
+}
+
+export async function markAttendanceAction(formData: FormData) {
+  const admin = await requireUser("admin");
+  if (!admin) redirect("/login?portal=admin&error=Admin access required.");
+  try { await markAttendance(admin.id, value(formData, "registrationId"), value(formData, "status")); } catch (error) {
+    go("/admin/dashboard", "error", error instanceof Error ? error.message : "Attendance update failed.");
+  }
+  revalidatePath("/admin/dashboard");
+  go("/admin/dashboard", "success", "Attendance saved.");
 }

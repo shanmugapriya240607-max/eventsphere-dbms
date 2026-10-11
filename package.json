@@ -7,6 +7,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "tsx --test tests/**/*.test.ts",
+    "test:priority2": "tsx scripts/test-priority2.ts",
     "typecheck": "tsc --noEmit",
     "db:init": "tsx scripts/init-db.ts",
     "db:verify": "tsx scripts/verify-db.ts"

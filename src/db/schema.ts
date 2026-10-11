@@ -2,9 +2,11 @@ import {
   boolean,
   date,
   datetime,
+  index,
   int,
   mysqlTable,
   text,
+  time,
   uniqueIndex,
   varchar,
 } from "drizzle-orm/mysql-core";
@@ -40,6 +42,14 @@ export const users = mysqlTable(
   }),
 );
 
+export const venues = mysqlTable("venues", {
+  id: varchar("id", { length: 40 }).primaryKey(),
+  name: varchar("name", { length: 120 }).notNull(),
+  location: varchar("location", { length: 180 }).notNull(),
+  capacity: int("capacity").notNull(),
+  status: varchar("status", { length: 20 }).default("available").notNull(),
+}, (table) => ({ nameIdx: uniqueIndex("venues_name").on(table.name) }));
+
 export const events = mysqlTable(
   "events",
   {
@@ -51,6 +61,7 @@ export const events = mysqlTable(
     eventDate: date("event_date", { mode: "string" }).notNull(),
     startTime: varchar("start_time", { length: 20 }).notNull(),
     venue: varchar("venue", { length: 120 }).notNull(),
+    venueId: varchar("venue_id", { length: 40 }).references(() => venues.id, { onDelete: "restrict" }),
     registrationDeadline: date("registration_deadline", { mode: "string" }).notNull(),
     availableSeats: int("available_seats").default(100).notNull(),
     rules: text("rules").notNull(),
@@ -65,6 +76,18 @@ export const events = mysqlTable(
     slugIdx: uniqueIndex("events_slug_idx").on(table.slug),
   }),
 );
+
+export const eventSchedules = mysqlTable("event_schedules", {
+  id: varchar("id", { length: 40 }).primaryKey(),
+  eventId: varchar("event_id", { length: 40 }).notNull().references(() => events.id, { onDelete: "cascade" }),
+  venueId: varchar("venue_id", { length: 40 }).notNull().references(() => venues.id, { onDelete: "restrict" }),
+  scheduleDate: date("schedule_date", { mode: "string" }).notNull(),
+  startTime: time("start_time").notNull(),
+  endTime: time("end_time").notNull(),
+}, (table) => ({
+  eventSlotIdx: uniqueIndex("uq_event_schedule").on(table.eventId, table.scheduleDate, table.startTime),
+  venueSlotIdx: index("idx_schedule_venue_slot").on(table.venueId, table.scheduleDate, table.startTime, table.endTime),
+}));
 
 export const registrations = mysqlTable(
   "registrations",
@@ -82,6 +105,14 @@ export const registrations = mysqlTable(
     participantEventIdx: uniqueIndex("registrations_user_event_idx").on(table.userId, table.eventId),
   }),
 );
+
+export const attendance = mysqlTable("attendance", {
+  id: varchar("id", { length: 40 }).primaryKey(),
+  registrationId: varchar("registration_id", { length: 40 }).notNull().references(() => registrations.id, { onDelete: "cascade" }),
+  markedBy: varchar("marked_by", { length: 40 }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  status: varchar("status", { length: 20 }).notNull(),
+  markedAt: datetime("marked_at", { mode: "date" }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({ registrationIdx: uniqueIndex("attendance_registration_id").on(table.registrationId) }));
 
 export const announcements = mysqlTable("announcements", {
   id: varchar("id", { length: 40 }).primaryKey(),
@@ -118,3 +149,6 @@ export type Registration = typeof registrations.$inferSelect;
 export type Announcement = typeof announcements.$inferSelect;
 export type Certificate = typeof certificates.$inferSelect;
 export type Coordinator = typeof coordinators.$inferSelect;
+export type Venue = typeof venues.$inferSelect;
+export type EventSchedule = typeof eventSchedules.$inferSelect;
+export type Attendance = typeof attendance.$inferSelect;
