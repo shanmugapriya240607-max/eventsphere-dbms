@@ -13,8 +13,8 @@ export default async function LoginPage({ searchParams }: { searchParams?: Promi
           <p className="mt-5 text-slate-300">JWT sessions, secure password hashing, email verification checks, and role-based routing for students and admins.</p>
           <div className="mt-8 rounded-3xl bg-white/10 p-5 text-sm text-slate-200">
             <p className="font-black text-amber-300">Demo credentials</p>
-            <p className="mt-2">Student: student001@demo.edu / CodeCraze@2026</p>
-            <p>Admin: admin@codecraze.edu / CodeCraze@2026</p>
+            <p className="mt-2">Student: student@eventsphere.edu / EventSphere@2026</p>
+            <p>Admin: admin@eventsphere.edu / EventSphere@2026</p>
           </div>
         </div>
         <div className="p-8 md:p-12">
@@ -26,8 +26,8 @@ export default async function LoginPage({ searchParams }: { searchParams?: Promi
           </div>
           <form action={loginAction} className="grid gap-4">
             <input type="hidden" name="role" value={portal} />
-            <label className="grid gap-2 text-sm font-bold">Email Address<input className="input" name="email" type="email" required defaultValue={portal === "admin" ? "admin@codecraze.edu" : "student001@demo.edu"} /></label>
-            <label className="grid gap-2 text-sm font-bold">Password<input className="input" name="password" type="password" required defaultValue="CodeCraze@2026" /></label>
+            <label className="grid gap-2 text-sm font-bold">Email Address<input className="input" name="email" type="email" required defaultValue={portal === "admin" ? "admin@eventsphere.edu" : "student@eventsphere.edu"} /></label>
+            <label className="grid gap-2 text-sm font-bold">Password<input className="input" name="password" type="password" required defaultValue="EventSphere@2026" /></label>
             <button className="btn-primary mt-2" type="submit">Login to {portal === "admin" ? "Admin Panel" : "Student Dashboard"}</button>
           </form>
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm font-semibold text-slate-600 dark:text-slate-300">

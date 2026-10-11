@@ -4,6 +4,7 @@ import { getUserFromRequest } from "@/lib/auth";
 import { ensureDatabase } from "@/lib/bootstrap";
 import { getPublicEvents } from "@/lib/queries";
 import { makeId } from "@/lib/security";
+import { ValidationError, validateEventInput, validateId } from "@/lib/validation";
 import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -19,26 +20,45 @@ export async function POST(request: NextRequest) {
   await ensureDatabase();
   const user = await getUserFromRequest(request);
   if (user?.role !== "admin") return NextResponse.json({ error: "Admin access required" }, { status: 403 });
-  const body = await request.json();
-  const id = makeId("evt");
-  await db.insert(events).values({ id, slug: slugify(body.name), status: "open", ...body });
-  const [event] = await db.select().from(events).where(eq(events.id, id)).limit(1);
-  return NextResponse.json({ event }, { status: 201 });
+  try {
+    const body = validateEventInput(await request.json());
+    const id = makeId("evt");
+    await db.insert(events).values({ id, ...body, slug: slugify(body.name) });
+    const [event] = await db.select().from(events).where(eq(events.id, id)).limit(1);
+    return NextResponse.json({ event }, { status: 201 });
+  } catch (error) {
+    if (error instanceof ValidationError) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: "Could not create event. The event name may already exist." }, { status: 409 });
+  }
 }
 
 export async function PUT(request: NextRequest) {
   const user = await getUserFromRequest(request);
   if (user?.role !== "admin") return NextResponse.json({ error: "Admin access required" }, { status: 403 });
-  const body = await request.json();
-  await db.update(events).set({ ...body, slug: body.name ? slugify(body.name) : undefined }).where(eq(events.id, body.id));
-  const [event] = await db.select().from(events).where(eq(events.id, body.id)).limit(1);
-  return NextResponse.json({ event });
+  try {
+    const raw = await request.json();
+    const id = validateId(raw.id, "Event ID");
+    const body = validateEventInput(raw);
+    await db.update(events).set({ ...body, slug: slugify(body.name) }).where(eq(events.id, id));
+    const [event] = await db.select().from(events).where(eq(events.id, id)).limit(1);
+    if (!event) return NextResponse.json({ error: "Event not found." }, { status: 404 });
+    return NextResponse.json({ event });
+  } catch (error) {
+    if (error instanceof ValidationError) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: "Could not update event." }, { status: 409 });
+  }
 }
 
 export async function DELETE(request: NextRequest) {
   const user = await getUserFromRequest(request);
   if (user?.role !== "admin") return NextResponse.json({ error: "Admin access required" }, { status: 403 });
   const { searchParams } = new URL(request.url);
-  await db.delete(events).where(eq(events.id, searchParams.get("id") ?? ""));
+  let id: string;
+  try { id = validateId(searchParams.get("id"), "Event ID"); } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid event ID." }, { status: 400 });
+  }
+  const [event] = await db.select({ id: events.id }).from(events).where(eq(events.id, id)).limit(1);
+  if (!event) return NextResponse.json({ error: "Event not found." }, { status: 404 });
+  await db.delete(events).where(eq(events.id, id));
   return NextResponse.json({ ok: true });
 }

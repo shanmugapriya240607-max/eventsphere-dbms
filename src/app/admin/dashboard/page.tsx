@@ -16,7 +16,8 @@ function Field({ name, placeholder, type = "text", defaultValue = "" }: { name: 
   return <input className="input" name={name} type={type} placeholder={placeholder} defaultValue={defaultValue} required />;
 }
 
-export default async function AdminDashboardPage() {
+export default async function AdminDashboardPage({ searchParams }: { searchParams?: Promise<{ error?: string; success?: string }> }) {
+  const params = await searchParams;
   const admin = await requireUser("admin");
   if (!admin) redirect("/login?portal=admin&error=Please login as an administrator.");
   const data = await getAdminDashboardData();
@@ -32,6 +33,8 @@ export default async function AdminDashboardPage() {
       </aside>
 
       <section className="p-5 md:p-8">
+        {params?.error ? <div className="mb-5 rounded-2xl bg-red-50 p-4 font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-200">{params.error}</div> : null}
+        {params?.success ? <div className="mb-5 rounded-2xl bg-emerald-50 p-4 font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200">{params.success}</div> : null}
         <div id="dashboard" className="rounded-[2rem] bg-slate-950 p-8 text-white shadow-2xl md:p-10">
           <p className="font-black uppercase tracking-[.2em] text-amber-300">Organizer Command Center</p>
           <div className="mt-3 flex flex-col justify-between gap-6 xl:flex-row xl:items-end">

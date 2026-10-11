@@ -19,7 +19,8 @@ function statusClass(status: string) {
   return "bg-amber-100 text-amber-800 dark:bg-amber-500/10 dark:text-amber-100";
 }
 
-export default async function StudentDashboardPage() {
+export default async function StudentDashboardPage({ searchParams }: { searchParams?: Promise<{ error?: string; success?: string }> }) {
+  const params = await searchParams;
   const user = await requireUser("student");
   if (!user) redirect("/login?error=Please login as a student.");
   const data = await getStudentDashboardData(user.id);
@@ -38,6 +39,8 @@ export default async function StudentDashboardPage() {
       </aside>
 
       <section className="p-5 md:p-8">
+        {params?.error ? <div className="mb-5 rounded-2xl bg-red-50 p-4 font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-200">{params.error}</div> : null}
+        {params?.success ? <div className="mb-5 rounded-2xl bg-emerald-50 p-4 font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200">{params.success}</div> : null}
         <div id="dashboard" className="rounded-[2rem] bg-slate-950 p-8 text-white shadow-2xl md:p-10">
           <div className="flex flex-col justify-between gap-6 xl:flex-row xl:items-end">
             <div>

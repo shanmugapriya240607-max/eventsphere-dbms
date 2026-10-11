@@ -5,7 +5,9 @@ import { announcements, events, registrations, users } from "@/db/schema";
 import { clearSession, requireUser, setSession } from "@/lib/auth";
 import { ensureDatabase } from "@/lib/bootstrap";
 import { hashPassword, makeId, makeToken, verifyPassword } from "@/lib/security";
-import { and, eq, sql } from "drizzle-orm";
+import { cancelRegistration, createRegistration, RegistrationError, setRegistrationStatus } from "@/lib/registration-service";
+import { ValidationError, validateEmail, validateEventInput, validateId, validateRole } from "@/lib/validation";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -25,7 +27,8 @@ export async function signUpAction(formData: FormData) {
   await ensureDatabase();
   const password = value(formData, "password");
   const confirmPassword = value(formData, "confirmPassword");
-  const email = value(formData, "email").toLowerCase();
+  let email: string;
+  try { email = validateEmail(value(formData, "email")); } catch (error) { go("/register", "error", error instanceof Error ? error.message : "Invalid email."); }
   const registerNumber = value(formData, "registerNumber").toUpperCase();
 
   if (!formData.get("terms")) go("/register", "error", "Please accept the terms and conditions.");
@@ -46,7 +49,7 @@ export async function signUpAction(formData: FormData) {
     registerNumber,
     collegeName: value(formData, "collegeName"),
     department: value(formData, "department"),
-    yearOfStudy: Number(value(formData, "yearOfStudy") || 1),
+    yearOfStudy: Math.min(6, Math.max(1, Number(value(formData, "yearOfStudy") || 1))),
     email,
     mobileNumber: value(formData, "mobileNumber"),
     gender: value(formData, "gender"),
@@ -77,9 +80,16 @@ export async function verifyEmailAction(formData: FormData) {
 
 export async function loginAction(formData: FormData) {
   await ensureDatabase();
-  const email = value(formData, "email").toLowerCase();
+  let email: string;
+  let role: "student" | "admin";
+  try {
+    email = validateEmail(value(formData, "email"));
+    role = validateRole(value(formData, "role") || "student");
+  } catch (error) {
+    go("/login", "error", error instanceof Error ? error.message : "Invalid login details.");
+  }
   const password = value(formData, "password");
-  const role = value(formData, "role") || "student";
+  if (!password) go("/login", "error", "Password is required.");
   const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
   if (!user || user.role !== role || !verifyPassword(password, user.passwordHash)) {
     go("/login", "error", "Invalid credentials for the selected portal.");
@@ -121,79 +131,68 @@ export async function resetPasswordAction(formData: FormData) {
 export async function registerForEventAction(formData: FormData) {
   const user = await requireUser("student");
   if (!user) redirect("/login?error=Please sign in as a student.");
-  const eventId = value(formData, "eventId");
-  await db
-    .insert(registrations)
-    .values({
-      id: makeId("reg"),
-      userId: user.id,
-      eventId,
-      status: "pending",
-      confirmationCode: `CC26-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-    })
-    .onDuplicateKeyUpdate({ set: { status: "pending", updatedAt: sql`CURRENT_TIMESTAMP` } });
-  revalidatePath("/student/dashboard");
+  try {
+    await createRegistration(user.id, value(formData, "eventId"));
+  } catch (error) {
+    go("/student/dashboard", "error", error instanceof Error ? error.message : "Registration failed.");
+  }
+  go("/student/dashboard", "success", "Registration submitted successfully.");
 }
 
 export async function cancelRegistrationAction(formData: FormData) {
   const user = await requireUser("student");
   if (!user) redirect("/login?error=Please sign in as a student.");
-  const registrationId = value(formData, "registrationId");
-  await db
-    .update(registrations)
-    .set({ status: "cancelled", updatedAt: sql`now()` })
-    .where(and(eq(registrations.id, registrationId), eq(registrations.userId, user.id)));
-  revalidatePath("/student/dashboard");
+  try {
+    await cancelRegistration(user.id, value(formData, "registrationId"));
+  } catch (error) {
+    go("/student/dashboard", "error", error instanceof Error ? error.message : "Cancellation failed.");
+  }
+  go("/student/dashboard", "success", "Registration cancelled.");
 }
 
 export async function saveEventAction(formData: FormData) {
   const admin = await requireUser("admin");
   if (!admin) redirect("/login?error=Admin access required.");
-  const eventId = value(formData, "eventId");
-  const name = value(formData, "name");
-  const payload = {
-    name,
-    slug: slugify(name),
-    category: value(formData, "category"),
-    description: value(formData, "description"),
-    eventDate: value(formData, "eventDate"),
-    startTime: value(formData, "startTime"),
-    venue: value(formData, "venue"),
-    registrationDeadline: value(formData, "registrationDeadline"),
-    availableSeats: Number(value(formData, "availableSeats") || 100),
-    rules: value(formData, "rules"),
-    facultyCoordinator: value(formData, "facultyCoordinator"),
-    studentCoordinator: value(formData, "studentCoordinator"),
-    prizeDetails: value(formData, "prizeDetails"),
-    posterUrl: value(formData, "posterUrl") || "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1200&q=80",
-    status: value(formData, "status") || "open",
-  };
+  let eventId: string;
+  let payload;
+  try {
+    eventId = value(formData, "eventId") ? validateId(value(formData, "eventId"), "Event ID") : "";
+    payload = validateEventInput(Object.fromEntries(formData.entries()));
+  } catch (error) {
+    go("/admin/dashboard", "error", error instanceof Error ? error.message : "Invalid event details.");
+  }
+  const eventValues = { ...payload, slug: slugify(payload.name) };
 
-  if (eventId) {
-    await db.update(events).set(payload).where(eq(events.id, eventId));
-  } else {
-    await db.insert(events).values({ id: makeId("evt"), ...payload }).onDuplicateKeyUpdate({ set: { name } });
+  try {
+    if (eventId) await db.update(events).set(eventValues).where(eq(events.id, eventId));
+    else await db.insert(events).values({ id: makeId("evt"), ...eventValues });
+  } catch {
+    go("/admin/dashboard", "error", "Could not save the event. Ensure its name and slug are unique.");
   }
   revalidatePath("/admin/dashboard");
   revalidatePath("/");
+  go("/admin/dashboard", "success", eventId ? "Event updated." : "Event created.");
 }
 
 export async function deleteEventAction(formData: FormData) {
   const admin = await requireUser("admin");
   if (!admin) redirect("/login?error=Admin access required.");
-  await db.delete(events).where(eq(events.id, value(formData, "eventId")));
+  const eventId = validateId(value(formData, "eventId"), "Event ID");
+  await db.delete(events).where(eq(events.id, eventId));
   revalidatePath("/admin/dashboard");
   revalidatePath("/");
+  go("/admin/dashboard", "success", "Event deleted.");
 }
 
 export async function updateRegistrationStatusAction(formData: FormData) {
   const admin = await requireUser("admin");
   if (!admin) redirect("/login?error=Admin access required.");
-  await db
-    .update(registrations)
-    .set({ status: value(formData, "status"), updatedAt: sql`now()` })
-    .where(eq(registrations.id, value(formData, "registrationId")));
-  revalidatePath("/admin/dashboard");
+  try {
+    await setRegistrationStatus(value(formData, "registrationId"), value(formData, "status"));
+  } catch (error) {
+    go("/admin/dashboard", "error", error instanceof Error ? error.message : "Status update failed.");
+  }
+  go("/admin/dashboard", "success", "Registration status updated.");
 }
 
 export async function createAnnouncementAction(formData: FormData) {
